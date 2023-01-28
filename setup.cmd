@@ -207,10 +207,10 @@ if !s_git!==1 (
 	set "$=!linuxUsrDir!.gitconfig"
 	if not exist "!$!" (
 		echo.[credential "helperselector"]
-		echo.	selected = manager-core
+		echo.	selected = manager
 		echo.[credential]
 		echo.	helper = ""
-		echo.	helper = manager-core.exe
+		echo.	helper = manager.exe
 	)>>"!$!"
 )
 
