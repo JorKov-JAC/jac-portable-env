@@ -1,6 +1,6 @@
 @echo off
-:: Sets up a portable developer environment, intended for usb drives.
-:: Copyright (C) 2022  Jordan Kovacs
+:: Sets up a portable developer environment intended for usb drives.
+:: Copyright (C) Jordan Kovacs
 ::
 :: This program is free software: you can redistribute it and/or modify
 :: it under the terms of the GNU General Public License as published by
@@ -16,23 +16,28 @@
 :: along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 :: Why batch and not powershell?
-:: Because I don't want users to deal with exeucution policy.
+:: Because I don't want users to deal with execution policy.
 :: Do I regret this choice?
-:: Yes.
-:: This whole script is underdocumented and full of repition and laziness (some
+:: Deeply.
+:: This whole script is underdocumented and full of repetition and laziness (some
 :: of which is even batch's fault). Have fun! - Jordan
+
+:: TODO
+:: - Output instructions to a .txt file so you don't need the setup script to see them.
+:: - Allow multiple versions of .NET to be installed at once.
+::   See readme.md FAQ for a workaround.
 
 
 setlocal ENABLEDELAYEDEXPANSION
 
-echo.%~n0 version 1.0.0  Copyright (C) 2022  Jordan Kovacs
+echo.%~n0 version 1.1.0  Copyright (C) Jordan Kovacs
 echo.This program comes with ABSOLUTELY NO WARRANT.
 echo.This is free software, and you are welcome to redistribute it
 echo.under certain conditions; see ^<https://www.gnu.org/licenses/gpl-3.0.en.html^>.
 echo.
 echo.To stop this script at any time, type Ctrl-C.
 echo.Would you like to setup a new portable environment? (1)
-echo.Or view help for how to use an already-setup environment? (2)
+echo.Or view help on how to use an already-setup environment? (2)
 :: Sore tomo... wa~ta~shi?
 choice /c 12
 echo.
@@ -61,43 +66,79 @@ echo.
 choice /m "Setup .NET? (C#)"
 set s_dotnet=!ERRORLEVEL!
 if !s_dotnet!==1 (
-	set "s_dotnet6Ver=6.0.403"
-	set "s_dotnet5Ver=5.0.408"
-	set "s_dotnet3Ver=3.1.425"
+	set serverError=0
+	:: Get latest versions from server
+	for /f %%G IN ('powershell -Command Invoke-WebRequest https://dotnetcli.azureedge.net/dotnet/Sdk/7.0/latest.version ^^^| %% {$_.Content}') DO set "s_dotnet7Ver=%%G"
+	if "!s_dotnet7Ver!"=="+" set serverError=1
+	for /f %%G IN ('powershell -Command Invoke-WebRequest https://dotnetcli.azureedge.net/dotnet/Sdk/6.0/latest.version ^^^| %% {$_.Content}') DO set "s_dotnet6Ver=%%G"
+	if "!s_dotnet6Ver!"=="+" set serverError=1
+	for /f %%G IN ('powershell -Command Invoke-WebRequest https://dotnetcli.azureedge.net/dotnet/Sdk/5.0/latest.version ^^^| %% {$_.Content}') DO set "s_dotnet5Ver=%%G"
+	if "!s_dotnet5Ver!"=="+" set serverError=1
+	for /f %%G IN ('powershell -Command Invoke-WebRequest https://dotnetcli.azureedge.net/dotnet/Sdk/3.1/latest.version ^^^| %% {$_.Content}') DO set "s_dotnet3Ver=%%G"
+	if "!s_dotnet3Ver!"=="+" set serverError=1
 
-	echo.Which .NET version?
-	echo.Latest, !s_dotnet6Ver!, !s_dotnet5Ver!, !s_dotnet3Ver!, or Custom?
+	if !serverError!==0 (
+		echo.Which .NET version?
+		echo.[7] (!s_dotnet7Ver!^), [6] (!s_dotnet6Ver!^), [5] (!s_dotnet5Ver!^), [3] (!s_dotnet3Ver!^), or [C]ustom?
 
-	choice /c L653C /m "(probably want Latest, 6, or 3)"
-	if !ERRORLEVEL!==1 ( set "s_dotnetVer=latest"
-	) else if !ERRORLEVEL!==2 ( set "s_dotnetVer=!s_dotnet6Ver!"
-	) else if !ERRORLEVEL!==3 ( set "s_dotnetVer=!s_dotnet5Ver!"
-	) else if !ERRORLEVEL!==4 ( set "s_dotnetVer=!s_dotnet3Ver!"
-	) else call :readCustomVer s_dotnetVer
+		set choices=7653C
+		choice /c !choices! /m "(probably want 7, 6, or 3)"
+		set /a choiceIdx=!ERRORLEVEL!-1
+		call :eval $ "^!choices:~%%choiceIdx%%^,1^!"
+		if !$!==7 ( set "s_dotnetVer=!s_dotnet7Ver!"
+		) else if !$!==6 ( set "s_dotnetVer=!s_dotnet6Ver!"
+		) else if !$!==5 ( set "s_dotnetVer=!s_dotnet5Ver!"
+		) else if !$!==3 ( set "s_dotnetVer=!s_dotnet3Ver!"
+		) else call :readCustomVer s_dotnetVer
 
-	echo.Chosen version: !s_dotnetVer!
+		echo.Chosen version: !s_dotnetVer!
+	) else (
+		echo.Could not get version info from server.
+		call :readCustomVer s_dotnetVer
+	)
 
-	echo.Should this portable version of .NET override ones installed on the computer
-	choice /m "even if they're more up to date? (probably want N, irrelevant after .NET 7)"
-	set "s_dotnetNoMulti=!ERRORLEVEL!"
+	set "s_dotnetCantMulti=1"
+	if "!s_dotnetVer:~,1!" LSS "7" ( if "!s_dotnetVer:~1,1!" == "." (
+		set "s_dotnetCantMulti=2"
+		echo.Should this portable version of .NET override ones installed on the computer
+		choice /m "even if the computer's installation is more up-to-date? (probably want N)"
+		set "s_dotnetNoMulti=!ERRORLEVEL!"
+	)) else (
+		echo.Notice: Since .NET 7, this portable version of .NET will override ones installed
+		echo.on the computer even if the computer's installation is more up-to-date.
+	)
 )
 
 echo.
 choice /m "Setup Git? (probably want Y)"
 set s_git=!ERRORLEVEL!
 if !s_git!==1 (
-	set "s_gitVer=2.38.1.windows.1"
-	choice /m "This script installs version !s_gitVer! by default. N to change version."
-	if !ERRORLEVEL!==2 call :readCustomVer s_gitVer
+	:: Get latest version from server. Avoids API because of rate limit
+	for /f %%G IN ('powershell -Command Invoke-WebRequest https://github.com/git-for-windows/git/releases/latest -MaximumRedirection 0 -ErrorAction Ignore ^^^| %% {$_.Headers.Location -replace ^'.*/v(\d+\.\d+\.\d+\.windows\.\d+^)$^'^, ^'$1^'}') DO set "s_gitVer=%%G"
+
+	if not "!s_gitVer!"=="+" (
+		choice /m "Y to install newest version (!s_gitVer!^), N to specify custom version."
+		if !ERRORLEVEL!==2 call :readCustomVer s_gitVer
+	) else (
+		echo.Could not get version info from server.
+		call :readCustomVer s_gitVer
+	)
 )
 
 echo.
 choice /m "Setup Node.js? (probably want Y)"
 set s_node=!ERRORLEVEL!
 if !s_node!==1 (
-	set "s_nodeVer=18.12.1"
-	choice /m "This script installs version !s_nodeVer! by default. N to change version."
-	if !ERRORLEVEL!==2 call :readCustomVer s_nodeVer
+	:: Get latest LTS version from server
+	for /f %%G IN ('powershell -Command Invoke-WebRequest https://nodejs.org/dist/index.json ^^^| %% {$_.Content} ^^^| ConvertFrom-Json ^^^| %% {$_} ^^^| ? {$_.lts -ne $False} ^^^| select @{l^=^'ver^'^; e^={[version] $_.version.substring(1^)}} ^^^| Measure ver -Maximum ^^^| %% {$_.Maximum.ToString(^)}') DO set "s_nodeVer=%%G"
+
+	if not "!s_nodeVer!"=="+" (
+		choice /m "Y to install newest LTS version (!s_nodeVer!^), N to specify custom version."
+		if !ERRORLEVEL!==2 call :readCustomVer s_nodeVer
+	) else (
+		echo.Could not get version info from server.
+		call :readCustomVer s_nodeVer
+	)
 )
 
 echo.
@@ -244,10 +285,13 @@ if !s_env!==1 (
 			echo.set "path=^!DOTNET_ROOT^!;^!DOTNET_CLI_HOME^!\.dotnet\tools;^!path^!"
 			echo.:: Opt out of sending telemetry data to Microsoft (comment out if you don't mind^):
 			echo.set "DOTNET_CLI_TELEMETRY_OPTOUT=1"
-			set "$=:: "
-			if "!s_dotnetNoMulti!"=="1" set $=
-			echo.:: Make portable version of .NET override local installation:
-			echo.!$!set "DOTNET_MULTILEVEL_LOOKUP=0"
+
+			if NOT "!s_dotnetCantMulti!"=="1" (
+				set "$=:: "
+				if "!s_dotnetNoMulti!"=="1" set $=
+				echo.:: Make portable version of .NET override local installation:
+				echo.!$!set "DOTNET_MULTILEVEL_LOOKUP=0"
+			)
 		)
 
 		if !s_git!==1 (
@@ -300,14 +344,14 @@ if not defined s_rawOut (
 
 echo.
 echo.__________________________________IMPORTANT___________________________________
-echo.      Whenever you want to use your portable environment, you need to use
+echo.      Whenever you want to use your portable environment, you need to run
 echo.    the env.cmd script and launch all of your portable programs from there.
 if exist "!s_rawOut!dotnet" (
 	echo.
 	echo.
 	echo..NET:
 	echo.-----
-	echo.To create a new console project in the current directory:
+	echo.To create a new console project in the current directory (see 'dotnet new console --help'^):
 	echo.	dotnet new console
 	echo.	dotnet new sln
 	echo.	dotnet sln add .
