@@ -8,7 +8,7 @@ Includes:
 - Visual Studio Code
 
 ## Setting up the environment (even without admin priviledges):
-1. [Download the latest release.](../../releases/latest)
+1. [Download `setup.cmd` from the latest release.](../../releases/latest)
 1. Run the setup script.
 
 ## Using your portable environment:
