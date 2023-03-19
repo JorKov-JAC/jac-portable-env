@@ -17,6 +17,9 @@ Includes:
 1. Launch your portable programs from the command prompt (instructions are included).
 
 ## FAQ
+### Which filesystem should I use?
+Use NTFS. Programs like Node.js and MSYS2 rely on NTFS's symlinks. Make a separate partition using exFAT so you can interop with macOS.
+
 ### Why can't Visual Studio Code analyze my C# project?
 When opening a C# project, look for a notification (bottom right corner) saying "Required assets to build and debug are missing from 'project'. Add them?" and select "Yes". Alternatively, press `F1` or `Ctrl-Shift-P`, type "Restart OmniSharp", and press `Enter` (this should reshow the notification).
 
@@ -30,3 +33,6 @@ Since .NET 7, the portable version of .NET will hide whatever .NET SDKs you have
 At Time of Writing, the setup script does not help with this. However, you can work around this by running the script again, selecting the same base folder as your current installation, only telling it to install a different version of .NET, and then telling the script NOT to overwrite `env.cmd`.
 
 Note that, when you want to use a version other than the latest, some commands will need you to specify which version you want to use, ex. `dotnet new console -f netcoreapp3.1` (see `dotnet new console --help`). `dotnet build`/`run`/`clean`/etc... are fine, however.
+
+### I'm using exFAT and `npm install` won't work!
+This doesn't always work, but here's the workaround: `npm install [<name>] --no-bin-links --cache <NTFS folder>` where `<NTFS folder>` is a folder on an NTFS drive that you don't mind filling up with trash files. Packages installed this way may not work as command line tools (ex. `npm test` may fail).
